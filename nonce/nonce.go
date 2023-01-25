@@ -213,6 +213,7 @@ func (ns *NonceService) Nonce() (string, error) {
 func (ns *NonceService) Valid(nonce string) bool {
 	c, err := ns.decrypt(nonce)
 	if err != nil {
+		fmt.Printf("nonce validation failed, decrypt, %s\n", err.Error())
 		ns.nonceRedeems.WithLabelValues("invalid", "decrypt").Inc()
 		return false
 	}
@@ -220,16 +221,19 @@ func (ns *NonceService) Valid(nonce string) bool {
 	ns.mu.Lock()
 	defer ns.mu.Unlock()
 	if c > ns.latest {
+		fmt.Printf("nonce validation failed, too high\n")
 		ns.nonceRedeems.WithLabelValues("invalid", "too high").Inc()
 		return false
 	}
 
 	if c <= ns.earliest {
+		fmt.Printf("nonce validation failed, too low\n")
 		ns.nonceRedeems.WithLabelValues("invalid", "too low").Inc()
 		return false
 	}
 
 	if ns.used[c] {
+		fmt.Printf("nonce validation failed, too already used\n")
 		ns.nonceRedeems.WithLabelValues("invalid", "already used").Inc()
 		return false
 	}
