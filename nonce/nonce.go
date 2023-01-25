@@ -208,12 +208,17 @@ func (ns *NonceService) Nonce() (string, error) {
 	return ns.encrypt(latest)
 }
 
+func log(msg string) {
+	fmt.Printf("[NONCE DEBUG] %s\n", msg)
+}
+
 // Valid determines whether the provided Nonce string is valid, returning
 // true if so.
 func (ns *NonceService) Valid(nonce string) bool {
+	log(fmt.Sprintf("validating nonce %s", nonce))
 	c, err := ns.decrypt(nonce)
 	if err != nil {
-		fmt.Printf("nonce validation failed, decrypt, %s\n", err.Error())
+		log(fmt.Sprintf("nonce validation failed, decrypt, %s\n", err.Error()))
 		ns.nonceRedeems.WithLabelValues("invalid", "decrypt").Inc()
 		return false
 	}
@@ -221,24 +226,27 @@ func (ns *NonceService) Valid(nonce string) bool {
 	ns.mu.Lock()
 	defer ns.mu.Unlock()
 	if c > ns.latest {
-		fmt.Printf("nonce validation failed, too high\n")
+		log("nonce validation failed, too high")
 		ns.nonceRedeems.WithLabelValues("invalid", "too high").Inc()
 		return false
 	}
 
 	if c <= ns.earliest {
-		fmt.Printf("nonce validation failed, too low\n")
+		log("nonce validation failed, too low")
 		ns.nonceRedeems.WithLabelValues("invalid", "too low").Inc()
 		return false
 	}
 
 	if ns.used[c] {
-		fmt.Printf("nonce validation failed, too already used\n")
+		log("nonce validation failed, already used")
 		ns.nonceRedeems.WithLabelValues("invalid", "already used").Inc()
 		return false
 	}
 
 	ns.used[c] = true
+	log("validation ok!")
+	log(fmt.Sprintf("current nonces used: %v\n", ns.used))
+
 	heap.Push(ns.usedHeap, c)
 	if len(ns.used) > ns.maxUsed {
 		s := time.Now()
